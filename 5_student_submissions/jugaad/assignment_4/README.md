@@ -113,7 +113,7 @@ the penalty is the only mechanism enforcing $\sum x_i = K$. Sweeping $\lambda$ a
 25 log-spaced values from $10^{-3}$ to $10^{3}$ shows three regimes:
 
 - **Too small:** penalty weak, solver selects more or fewer than $K = 10$ stocks.
-- **Right range:** exactly 10 stocks selected, total return near the top-$K$ optimum.
+- **Right range:** exactly 10 stocks selected, total return near the top $K$ optimum.
 - **Too large:** still 10 stocks but return signal $\mu_i$ is drowned out; selection
   becomes nearly arbitrary.
 
@@ -141,12 +141,12 @@ Lambda is rescaled with $\gamma$ as $\lambda_\gamma = \max(\lambda, 10\gamma \cd
 
 ### 7.1 Brute Force Validation
 
-On the 20-stock subset, brute force selects the same stocks as a naive top-$K$ sort by
+On the 20-stock subset, brute force selects the same stocks as a naive top $K$ sort by
 $\mu_i$:
 
 - Brute force: ADANIPORTS, ASIANPAINT, BAJAJFINSV, BAJFINANCE, BRITANNIA, DRREDDY,
   EICHERMOT, HCLTECH, HDFC, HINDALCO
-- Naive top-$K$ (first 20): identical
+- Naive top $K$ (first 20): identical
 - QUBO cost: -260.0706
 
 This validates the formulation. With a sufficiently large $\lambda$, the QUBO correctly
@@ -245,7 +245,7 @@ risk term $w^\top \Sigma w$ in classical Markowitz.
 QUBO provides a clean framework for discrete portfolio selection. The cardinality constraint
 is absorbed into the objective via a squared penalty, converting a constrained combinatorial
 problem into unconstrained quadratic minimization. Both brute force and simulated annealing
-correctly recover the top-$K$ selection under the return-only objective, validating the
+correctly recover the top $K$ selection under the return-only objective, validating the
 formulation.
 
 Adding a covariance penalty ($\gamma > 0$) introduces diversification pressure through the

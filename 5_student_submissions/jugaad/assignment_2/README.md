@@ -101,15 +101,18 @@ Objective is linear in $(w, t)$; risk constraint is a rotated SOC. CVXPY passes 
 
 Each SCS iteration:
 
-1. **Primal**: solve for $(w, t)$ ignoring cone:
+**Step 1 - Primal**: solve for $(w, t)$ ignoring cone:
+
 $$
 (w^{k+1}, t^{k+1}) = \arg\min_{w,t} \; \left(\tfrac{1}{2}t - \gamma\mu^\top w\right) + \tfrac{\rho}{2}\left\|\binom{w}{t} - z^k + u^k\right\|_2^2
 $$
+
 Coefficient matrix involves $L^\top L = \Sigma$, fixed across all $\gamma$; same factorization reused every iteration.
+   
 
-2. **Project**: $z^{k+1} = \Pi\bigl(w^{k+1}+u^k,\; t^{k+1}+u^k_t\bigr)$ onto $\mathbf{1}^\top w=1$, $w\ge 0$, $(t, L^\top w)\in\mathcal{Q}_{\text{rot}}$.
+**Step 2 - Project**: $z^{k+1} = \Pi\bigl(w^{k+1}+u^k,\; t^{k+1}+u^k_t\bigr)$ onto $\mathbf{1}^\top w=1$, $w\ge 0$, $(t, L^\top w)\in\mathcal{Q}_{\text{rot}}$.
 
-3. **Dual**: $u^{k+1} = u^k + (w^{k+1}, t^{k+1}) - z^{k+1}$
+**Step 3 - Dual**: $u^{k+1} = u^k + (w^{k+1}, t^{k+1}) - z^{k+1}$
 
 Because $L$ is fixed, the factorization is paid once; SCS only iterates the cheap primal-project-dual cycle across the $\gamma$ sweep.
 
@@ -128,25 +131,25 @@ In the tables below, **Return** means annualized expected return and **Risk** me
 
 ### 5.1 Full Universe Results
 
-| Gamma | Annualized Expected Return | Annualized Volatility | Sharpe | Stocks Selected | Top Holdings |
-| --- | --- | --- | --- | --- | --- |
-| 0.1 | 25.51% | 16.73% | 1.525 | 12 | HINDUNILVR / SHREECEM / BAJAJFINSV |
-| 0.5 | 34.57% | 26.77% | 1.292 | 4 | BAJAJFINSV / BAJFINANCE / SHREECEM |
-| 1.0 | 37.59% | 33.66% | 1.117 | 2 | BAJAJFINSV / BAJFINANCE |
-| 2.0 | 37.86% | 34.83% | 1.087 | 2 | BAJAJFINSV / BAJFINANCE |
-| 5.0 | 38.66% | 42.16% | 0.917 | 2 | BAJFINANCE / BAJAJFINSV |
-| 10.0 | 39.03% | 46.85% | 0.833 | 1 | BAJFINANCE |
+| Gamma | Annualized Expected Return | Annualized Volatility | Sharpe | Stocks Selected | Top Holdings                       |
+| ----- | -------------------------- | --------------------- | ------ | --------------- | ---------------------------------- |
+| 0.1   | 25.51%                     | 16.73%                | 1.525  | 12              | HINDUNILVR / SHREECEM / BAJAJFINSV |
+| 0.5   | 34.57%                     | 26.77%                | 1.292  | 4               | BAJAJFINSV / BAJFINANCE / SHREECEM |
+| 1.0   | 37.59%                     | 33.66%                | 1.117  | 2               | BAJAJFINSV / BAJFINANCE            |
+| 2.0   | 37.86%                     | 34.83%                | 1.087  | 2               | BAJAJFINSV / BAJFINANCE            |
+| 5.0   | 38.66%                     | 42.16%                | 0.917  | 2               | BAJFINANCE / BAJAJFINSV            |
+| 10.0  | 39.03%                     | 46.85%                | 0.833  | 1               | BAJFINANCE                         |
 
 ### 5.2 Extended Universe Results
 
-| Gamma | Annualized Expected Return | Annualized Volatility | Sharpe | Stocks Selected | Top Holdings |
-| --- | --- | --- | --- | --- | --- |
-| 0.1 | 27.44% | 19.64% | 1.397 | 12 | SHREECEM / HINDUNILVR / ASIANPAINT |
-| 0.5 | 39.17% | 29.70% | 1.319 | 3 | SHREECEM / BAJFINANCE / TITAN |
-| 1.0 | 39.87% | 31.43% | 1.269 | 3 | SHREECEM / BAJFINANCE / TITAN |
-| 2.0 | 40.73% | 35.04% | 1.162 | 2 | BAJFINANCE / SHREECEM |
-| 5.0 | 42.45% | 49.09% | 0.865 | 1 | BAJFINANCE |
-| 10.0 | 42.46% | 49.09% | 0.865 | 1 | BAJFINANCE |
+| Gamma | Annualized Expected Return | Annualized Volatility | Sharpe | Stocks Selected | Top Holdings                       |
+| ----- | -------------------------- | --------------------- | ------ | --------------- | ---------------------------------- |
+| 0.1   | 27.44%                     | 19.64%                | 1.397  | 12              | SHREECEM / HINDUNILVR / ASIANPAINT |
+| 0.5   | 39.17%                     | 29.70%                | 1.319  | 3               | SHREECEM / BAJFINANCE / TITAN      |
+| 1.0   | 39.87%                     | 31.43%                | 1.269  | 3               | SHREECEM / BAJFINANCE / TITAN      |
+| 2.0   | 40.73%                     | 35.04%                | 1.162  | 2               | BAJFINANCE / SHREECEM              |
+| 5.0   | 42.45%                     | 49.09%                | 0.865  | 1               | BAJFINANCE                         |
+| 10.0  | 42.46%                     | 49.09%                | 0.865  | 1               | BAJFINANCE                         |
 
 ## 6. Interpretation of Results
 
@@ -170,12 +173,12 @@ The assignment also asks for parameter changes and re-estimation. In this sectio
 
 Using the Full universe at $\gamma = 1.0$, the results were:
 
-| Configuration | Return | Risk | Main Observation |
-| --- | --- | --- | --- |
-| Standard | 37.59% | 33.66% | Baseline solution |
-| Loose | 37.59% | 33.66% | Almost unchanged |
-| High Precision | 37.59% | 33.66% | Almost unchanged |
-| Aggressive Alpha | 37.59% | 33.66% | Almost unchanged |
+| Configuration    | Return | Risk   | Main Observation  |
+| ---------------- | ------ | ------ | ----------------- |
+| Standard         | 37.59% | 33.66% | Baseline solution |
+| Loose            | 37.59% | 33.66% | Almost unchanged  |
+| High Precision   | 37.59% | 33.66% | Almost unchanged  |
+| Aggressive Alpha | 37.59% | 33.66% | Almost unchanged  |
 
 The return drift, risk drift, and weight drift are negligible. Therefore, SCS is numerically stable for this portfolio problem.
 
@@ -183,12 +186,12 @@ The return drift, risk drift, and weight drift are negligible. Therefore, SCS is
 
 The principal practical benefit of SCS in this setting is speed. On the Full universe at $\gamma = 1.0$, SCS was compared with a high-precision SCS run and with other convex solvers on the same problem.
 
-| Solver | Solve Time (s) | Return | Risk |
-| --- | ---: | ---: | ---: |
-| SCS | 0.000097 | 37.59% | 33.66% |
-| SCS (High Precision) | 0.000137 | 37.59% | 33.66% |
-| ECOS | 0.000861 | 37.59% | 33.66% |
-| OSQP | 0.000460 | 37.59% | 33.66% |
+| Solver               | Solve Time (s) | Return |   Risk |
+| -------------------- | -------------: | -----: | -----: |
+| SCS                  |       0.000097 | 37.59% | 33.66% |
+| SCS (High Precision) |       0.000137 | 37.59% | 33.66% |
+| ECOS                 |       0.000861 | 37.59% | 33.66% |
+| OSQP                 |       0.000460 | 37.59% | 33.66% |
 
 The portfolio is almost identical across all four runs, but SCS is faster. That is the main reason it is an appropriate solver for this assignment.
 

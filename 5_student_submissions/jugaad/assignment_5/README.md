@@ -137,7 +137,7 @@ is replaced by one unselected stock, preserving exactly $K$ active positions thr
 search. The cardinality constraint is satisfied by construction, not by penalty alone. The
 acceptance rule follows the Metropolis criterion with geometric cooling
 ($T \leftarrow 0.997 \cdot T$). Each run uses 1200 iterations and 4 independent restarts;
-the first restart is seeded with the top-$K$ Sharpe stocks, and the remaining three start
+the first restart is seeded with the top $K$ Sharpe stocks, and the remaining three start
 from random selections.
 
 **Weighting.** After SA selects $K$ stocks, weights are assigned by return-tilted inverse
@@ -267,7 +267,7 @@ Classical portfolios. EqualWeight drawdowns track the broad market at −41% to 
 ### 7.1 Where Classical Wins
 
 Classical MVO delivers the highest absolute returns in every universe and cadence combination.
-It benefits from unconstrained continuous weights across its top-$K$ selection, allowing the
+It benefits from unconstrained continuous weights across its top $K$ selection, allowing the
 optimizer to tilt aggressively toward whichever stocks have the best trailing signal. CAGR
 ranges from 28.5% (monthly Full) to 31.4% (yearly Full).
 

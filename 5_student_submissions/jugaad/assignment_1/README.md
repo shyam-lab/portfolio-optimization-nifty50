@@ -26,23 +26,9 @@ In the Markowitz framework, a portfolio is represented by a weight vector $w$, w
 
 The main quantities are:
 
-- expected portfolio return:
-
-  $$
-  \mathbb{E}[R_p] = \mu^\top w
-  $$
-
-- portfolio variance:
-
-  $$
-  \mathrm{Var}(R_p) = w^\top \Sigma w
-  $$
-
-- portfolio volatility:
-
-  $$
-  \sigma_p = \sqrt{w^\top \Sigma w}
-  $$
+- expected portfolio return: $\mathbb{E}[R_p] = \mu^\top w$
+- portfolio variance: $\mathrm{Var}(R_p) = w^\top \Sigma w$
+- portfolio volatility: $\sigma_p = \sqrt{w^\top \Sigma w}$
 
 Here:
 
@@ -92,13 +78,7 @@ If we vary $\sigma_{\text{target}}$ in the first model or vary $\gamma$ in the s
 The two formulations are also connected mathematically through the **Lagrangian**. For the target-risk problem, the Lagrangian is
 
 $$
-\mathcal{L}(w,\lambda,\eta)
-=
-\mu^\top w
--
-\lambda \left(w^\top \Sigma w - \sigma_{\text{target}}^2\right)
--
-\eta \left(\sum_{i=1}^{n} w_i - 1\right).
+\mathcal{L}(w,\lambda,\eta) = \mu^\top w - \lambda \left(w^\top \Sigma w - \sigma_{\text{target}}^2\right) - \eta \left(\sum_{i=1}^{n} w_i - 1\right).
 $$
 
 Here, $\lambda$ is the multiplier on the risk constraint. This gives the same return-minus-risk structure as
@@ -121,12 +101,7 @@ Adjusted closing prices were obtained from Yahoo Finance through `yfinance`. The
 
 - requested download window: `2020-01-01` to `2025-12-03`
 - saved output window: `2020-01-02` to `2025-12-02`
-- simple daily returns computed as
-
-  $$
-  r_t = \frac{P_t}{P_{t-1}} - 1
-  $$
-
+- simple daily returns computed as $r_t = \frac{P_t}{P_{t-1}} - 1$
 - annualization based on `252` trading days
 
 The annualized inputs were constructed as:
@@ -215,61 +190,61 @@ Monte Carlo simulation is informative for visualizing the feasible set, but it d
 
 The convex optimizer matched the target risk levels exactly and produced the following expected returns:
 
-| Risk Level | Target Risk | Achieved Risk | Expected Return |
-| :--- | :--- | :--- | :--- |
-| Low Risk | 20.00% | 20.00% | 25.05% |
-| Medium Risk | 28.00% | 28.00% | 39.74% |
-| High Risk | 40.00% | 40.00% | 55.82% |
+| Risk Level  | Target Risk | Achieved Risk | Expected Return |
+| :---------- | :---------- | :------------ | :-------------- |
+| Low Risk    | 20.00%      | 20.00%        | 25.05%          |
+| Medium Risk | 28.00%      | 28.00%        | 39.74%          |
+| High Risk   | 40.00%      | 40.00%        | 55.82%          |
 
 The corresponding portfolio weights were:
 
 | Ticker | Low Risk | Medium Risk | High Risk |
-| :--- | ---: | ---: | ---: |
-| AAPL | 4.6% | 0.0% | 0.0% |
-| MSFT | 0.0% | 0.0% | 0.0% |
-| NVDA | 18.4% | 44.1% | 71.0% |
-| ORCL | 8.1% | 8.0% | 7.7% |
-| JPM | 6.9% | 3.9% | 0.0% |
-| V | 0.0% | 0.0% | 0.0% |
-| BAC | 0.0% | 0.0% | 0.0% |
-| JNJ | 62.1% | 44.0% | 21.3% |
-| PFE | 0.0% | 0.0% | 0.0% |
-| UNH | 0.0% | 0.0% | 0.0% |
+| :----- | -------: | ----------: | --------: |
+| AAPL   |     4.6% |        0.0% |      0.0% |
+| MSFT   |     0.0% |        0.0% |      0.0% |
+| NVDA   |    18.4% |       44.1% |     71.0% |
+| ORCL   |     8.1% |        8.0% |      7.7% |
+| JPM    |     6.9% |        3.9% |      0.0% |
+| V      |     0.0% |        0.0% |      0.0% |
+| BAC    |     0.0% |        0.0% |      0.0% |
+| JNJ    |    62.1% |       44.0% |     21.3% |
+| PFE    |     0.0% |        0.0% |      0.0% |
+| UNH    |     0.0% |        0.0% |      0.0% |
 
 ### 8.2 Monte Carlo Results
 
 The best feasible Dirichlet portfolios were close to the efficient frontier, but more concentrated than the convex solution. The results below use the primary Dirichlet sampler (Appendix B contains the alternative samplers).
 
-| Risk Level | Target Risk | Achieved Risk | Expected Return |
-| :--- | :--- | :--- | :--- |
-| Low Risk | 20.00% | 19.93% | 23.64% |
-| Medium Risk | 28.00% | 27.95% | 39.40% |
-| High Risk | 40.00% | 39.99% | 55.70% |
+| Risk Level  | Target Risk | Achieved Risk | Expected Return |
+| :---------- | :---------- | :------------ | :-------------- |
+| Low Risk    | 20.00%      | 19.93%        | 23.64%          |
+| Medium Risk | 28.00%      | 27.95%        | 39.40%          |
+| High Risk   | 40.00%      | 39.99%        | 55.70%          |
 
 The corresponding Monte Carlo weights were:
 
 | Ticker | Low Risk | Medium Risk | High Risk |
-| :--- | ---: | ---: | ---: |
-| AAPL | 5.4% | 0.0% | 0.0% |
-| MSFT | 1.8% | 0.0% | 0.0% |
-| NVDA | 15.3% | 46.8% | 73.3% |
-| ORCL | 10.5% | 0.0% | 0.0% |
-| JPM | 0.8% | 0.0% | 0.0% |
-| V | 8.2% | 0.0% | 0.0% |
-| BAC | 1.6% | 0.0% | 0.0% |
-| JNJ | 52.0% | 53.2% | 26.7% |
-| PFE | 0.2% | 0.0% | 0.0% |
-| UNH | 4.3% | 0.0% | 0.0% |
+| :----- | -------: | ----------: | --------: |
+| AAPL   |     5.4% |        0.0% |      0.0% |
+| MSFT   |     1.8% |        0.0% |      0.0% |
+| NVDA   |    15.3% |       46.8% |     73.3% |
+| ORCL   |    10.5% |        0.0% |      0.0% |
+| JPM    |     0.8% |        0.0% |      0.0% |
+| V      |     8.2% |        0.0% |      0.0% |
+| BAC    |     1.6% |        0.0% |      0.0% |
+| JNJ    |    52.0% |       53.2% |     26.7% |
+| PFE    |     0.2% |        0.0% |      0.0% |
+| UNH    |     4.3% |        0.0% |      0.0% |
 
 ### 8.3 Direct Comparison
 
 The final comparison between the two methods is shown below:
 
-| Risk Level | Convex Return | Monte Carlo Return | Return Gap | Convex Risk | Monte Carlo Risk |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| Low Risk | 25.05% | 23.64% | 1.41 pp | 20.00% | 19.93% |
-| Medium Risk | 39.74% | 39.40% | 0.34 pp | 28.00% | 27.95% |
-| High Risk | 55.82% | 55.70% | 0.12 pp | 40.00% | 39.99% |
+| Risk Level  | Convex Return | Monte Carlo Return | Return Gap | Convex Risk | Monte Carlo Risk |
+| :---------- | :------------ | :----------------- | :--------- | :---------- | :--------------- |
+| Low Risk    | 25.05%        | 23.64%             | 1.41 pp    | 20.00%      | 19.93%           |
+| Medium Risk | 39.74%        | 39.40%             | 0.34 pp    | 28.00%      | 27.95%           |
+| High Risk   | 55.82%        | 55.70%             | 0.12 pp    | 40.00%      | 39.99%           |
 
 ## 9. Interpretation
 

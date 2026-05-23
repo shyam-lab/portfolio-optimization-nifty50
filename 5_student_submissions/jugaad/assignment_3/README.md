@@ -187,8 +187,8 @@ Extended: only 252-day rolling mean kept (val Sharpe 1.82, clearly best).
 
 ### 6.5 Selected Features per Universe
 
-- **Full**: all 20 features (5 daily lags + 12 monthly lags + rm\_63 + rm\_126 + rm\_252).
-- **Extended**: 6 features (5 daily lags + rm\_252 only).
+- **Full**: all 20 features (5 daily lags + 12 monthly lags + $rm_{63}$ + $rm_{126}$ + $rm_{252}$).
+- **Extended**: 6 features (5 daily lags + $rm_{252}$ only).
 
 The Extended universe benefits from a simpler model. Its longer, more volatile history (2004-2021)
 contains more regime changes; medium-term lags and shorter rolling means add noise rather than
@@ -265,7 +265,7 @@ At low $\gamma$ both traces start close together, but as $\gamma$ increases the 
 traces diverge: ML achieves higher Sharpe at comparable or lower volatility. On the Extended
 universe, Markowitz sits above ML throughout the trace. The overlap-band comparison at minimum
 volatility shows a -0.41% gap on Full and -11.34% on Extended, but this understates the ML
-advantage on Full because it measures only the low-$\gamma$ region where Markowitz dominates.
+advantage on Full because it measures only the low $\gamma$ region where Markowitz dominates.
 
 ## 9. Interpretation
 
