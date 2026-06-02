@@ -1,0 +1,5 @@
+solver,class,algorithm,handles_socp,notes
+OSQP,QP,ADMM operator splitting,False,skips Lorentz cone formulations
+CLARABEL,SOCP/SDP,interior point,True,default in CVXPY 1.4+
+SCS,SOCP/SDP,first-order splitting,True,"first-order, tol 1e-4"
+ECOS,SOCP,interior point,True,QPs auto-canonicalised to SOC by CVXPY

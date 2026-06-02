@@ -1,0 +1,4 @@
+method,seconds,gamma_points,active_sets_evaluated,assets
+exact_active_set_enumeration,51.24780509700213,200,1048575.0,20
+active_set_iteration,0.014417127000342589,200,,20
+cvxpy_clarabel,0.3008470499989926,200,,20
