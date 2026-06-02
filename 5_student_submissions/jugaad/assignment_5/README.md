@@ -4,9 +4,10 @@
 
 This assignment compares three portfolio-construction paradigms on NIFTY 50 processed data:
 classical mean-variance optimization, ML-enhanced selection via gradient-boosted classification,
-and quantum-inspired binary selection via QUBO solved with simulated annealing. The central
-question is whether the discrete, cardinality-constrained QUBO formulation provides a measurable
-advantage over continuous optimization, and under what conditions.
+and discrete binary selection via QUBO solved with simulated annealing. The central question
+is whether the discrete, cardinality-constrained QUBO formulation provides a measurable
+advantage over continuous optimization, and under what conditions. Sharpe ratios in this
+report assume a zero risk-free rate.
 
 ## 1. Introduction
 
@@ -22,9 +23,11 @@ Unconstrained Binary Optimization) encodes this combinatorial selection as a qua
 over binary variables, which can be solved by simulated annealing or, in principle, by quantum
 hardware.
 
-This assignment builds all three pipelines on the same data and evaluates them over the same
-out-of-sample window, so performance differences arise solely from the construction method.
-An equal-weight baseline provides a model-free sanity check.
+All three pipelines are built on the same data and evaluated over the same out-of-sample
+window. Performance differences across methods reflect the combined effect of stock
+selection rule (Sharpe screen vs ML classifier vs QUBO), weighting scheme (MVO vs
+return-tilted inverse-volatility), cardinality (continuous vs fixed $K = 10$), and
+solver behaviour. An equal-weight baseline provides a model-free sanity check.
 
 ## 2. Data and Universes
 
@@ -267,9 +270,9 @@ Classical portfolios. EqualWeight drawdowns track the broad market at −41% to 
 ### 7.1 Where Classical Wins
 
 Classical MVO delivers the highest absolute returns in every universe and cadence combination.
-It benefits from unconstrained continuous weights across its top $K$ selection, allowing the
-optimizer to tilt aggressively toward whichever stocks have the best trailing signal. CAGR
-ranges from 28.5% (monthly Full) to 31.4% (yearly Full).
+Within its top $K$ Sharpe-screened set it has continuous weights subject to the 20% per-asset
+cap, so the optimizer can tilt heavily toward whichever stocks have the strongest trailing
+signal up to that cap. CAGR ranges from 28.5% (monthly Full) to 31.4% (yearly Full).
 
 ### 7.2 Where QUBO Wins
 
@@ -278,32 +281,39 @@ QUBO's advantage is risk-adjusted performance, not raw return. With yearly rebal
 - **Full universe**: Sharpe 1.47 (best in table), vol 17.5%, MaxDD −28.3%
 - **Extended universe**: Sharpe 1.30 (best in table), vol 19.0%, MaxDD −33.1%
 
-QUBO beats every other method on Sharpe ratio in both yearly universes. The SA solver's hard
-cardinality constraint (K=10) enforces diversification at the selection stage. The inverse-
-volatility weighting reinforces this by tilting capital toward lower-risk names within the
-selected set. QUBO also has the lowest turnover among active methods (0.89), making it the
-least sensitive to transaction costs.
+QUBO has the highest Sharpe ratio of any method in both yearly universes. The SA solver's
+hard cardinality constraint ($K = 10$) enforces diversification at the selection stage. The
+inverse-volatility weighting reinforces this by tilting capital toward lower-risk names
+within the selected set. QUBO also has the lowest turnover among the active methods at
+either cadence (0.89 yearly, 0.33 monthly, versus Classical's 0.95 yearly / 0.43 monthly and
+ML's 1.4–1.6 yearly / 1.2–1.4 monthly); lower turnover would make QUBO less exposed to
+transaction costs, though no costs are applied in this backtest.
 
 The structural reason QUBO wins on risk-adjusted metrics is that the hard cardinality
 constraint acts as implicit regularization. Continuous MVO can concentrate into 5 effective
-positions (median cardinality 5), amplifying estimation error. QUBO's fixed 10-stock
-selection spreads risk more evenly, which reduces volatility and drawdowns even though it
+positions (median cardinality 5), amplifying estimation error. QUBO's $K = 10$ selection
+(exact on three of four cells; yearly Extended drifts to 9.5 when one rebalance drops a
+name) spreads risk more evenly, which reduces volatility and drawdowns even though it
 sacrifices some return.
 
 ### 7.3 ML Positioning
 
-The XGBClassifier adds a learned forward-looking signal that beats EqualWeight in all
-configurations. However, its Sharpe sits below both Classical and QUBO in most settings,
-and its average turnover (1.2-1.6x per rebalance) is the highest of any method. In a
-realistic setting with transaction costs, ML's edge would erode the fastest.
+The XGBClassifier-screened path produces higher Sharpe and CAGR than EqualWeight in every
+universe and cadence combination in this backtest. Drawdowns are mixed: ML is shallower
+than EqualWeight on monthly Full but deeper on monthly Extended. ML Sharpe sits below
+both Classical and QUBO in most settings, and its average turnover (1.2-1.6x per rebalance)
+is the highest of any method. Under transaction costs, ML's gross-of-cost edge would
+likely erode the fastest.
 
 ### 7.4 Monthly vs Yearly
 
 Monthly rebalancing provides more opportunities to update portfolio weights but introduces
-more turnover. Yearly rebalancing reduces trading and favors QUBO, which benefits from
-fewer decision points and lower exposure to estimation noise. The EqualWeight baseline is
-identical across cadences (since it always holds all stocks), confirming that cadence
-differences arise from the active methods.
+more turnover. Yearly rebalancing reduces trading and produces QUBO's strongest result in
+this backtest (Sharpe 1.47 on Full, 1.30 on Extended). EqualWeight's return, vol, Sharpe,
+CAGR, and max drawdown are identical across monthly and yearly cadences (since the
+holdings vector is the same: every available stock at $1/N$). Only EqualWeight's
+turnover changes (0.01 monthly vs 0.13 yearly), reflecting the larger drift between
+re-equalizations under the longer holding period.
 
 ## 8. Limitations
 
@@ -330,12 +340,14 @@ provides an advantage. QUBO with simulated annealing does not maximize absolute 
 Classical MVO consistently achieves higher CAGR. Where QUBO adds value is in risk-adjusted
 performance:
 
-1. QUBO achieves the highest Sharpe ratio in the entire table with yearly rebalancing:
-   **1.47 (Full)** and **1.30 (Extended)**, while maintaining the shallowest drawdowns.
+1. QUBO has the highest Sharpe ratio in the table under yearly rebalancing:
+   **1.47 (Full)** and **1.30 (Extended)**, with the shallowest drawdowns among the
+   active methods.
 2. The hard cardinality constraint acts as implicit regularization, producing portfolios
-   with lower concentration and more stable risk profiles than MVO-selected alternatives.
-3. QUBO's low turnover (0.89) means its advantage would widen further under realistic
-   transaction costs.
+   with lower concentration and more stable risk profiles than the MVO-selected
+   alternatives in this backtest.
+3. QUBO's low turnover (0.89) would reduce its exposure to transaction costs if any were
+   charged, though this is not modelled here.
 
 The practical case for QUBO is strongest when the investor's priority is drawdown control and
 Sharpe stability rather than return maximization, and when the stock universe is large enough

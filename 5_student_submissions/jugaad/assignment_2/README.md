@@ -18,33 +18,34 @@ This assignment uses a classical mean-variance framework and solves it with **SC
 
 ## 2. Data Processing and Two Universes
 
-The raw file used in this assignment is `data/raw/raw_data.csv`. Before building the portfolio dataset, the file is cleaned in the following way:
+The notebook reads two checked-in wide-format daily-close price matrices produced by `data/Data_Pipeline.ipynb`:
 
-- only rows with `Series == "EQ"` are kept
-- the pseudo-symbol rows `NIFTY50_all` and `stock_metadata` are removed
-- the working columns are `Date`, `Symbol`, `Close`, and `Prev Close`
-- daily returns are computed gap-safe per row as $R_t = \text{Close}_t / \text{PrevClose}_t - 1$, using the exchange-reported previous close (split- and bonus-adjusted by NSE)
-- a small number of single-day returns with $|R_t| \ge 0.5$ are dropped as unadjusted corporate-action artifacts (e.g. a +5438% UPL row on 2004-01-23 caused by a pre-split price mismatch)
-- the cleaned prices are reshaped into a stock-by-date price matrix and the returns into a stock-by-date return matrix
+- `data/processed/price_matrix_full.csv` — 49 NIFTY-50 constituents, common period `2010-11-04` to `2021-04-30`, 2,598 trading days.
+- `data/processed/price_matrix_extended.csv` — 37 NIFTY-50 constituents (those with continuous data from 2004), 4,286 trading days from `2004-01-23` to `2021-04-30`.
 
-Not all stocks have the same trading history. Accordingly, two universes are constructed:
+Both matrices are produced upstream by:
 
-- **Full Universe**: keep all cleaned stocks and use the common period where every stock has data
-- **Extended Universe**: remove the highest-missingness stocks and keep a longer sample window
+- keeping only rows with `Series == "EQ"` in `data/raw/raw_data.csv`
+- removing the pseudo-symbol rows `NIFTY50_all` and `stock_metadata`
+- reshaping to wide format with `Date` as the index and one `Close` column per `Symbol`
+- restricting to the common trading window where every retained stock has complete daily closes
 
-The final universes are:
+Inside the notebook, the index-level pseudo column `NIFTY50_all` is dropped from each matrix before any modelling. The processed matrices store *prices*; no return-level filtering is applied here. A small number of single-day returns with $|R_t| \ge 0.5$ exist (e.g. a +5438% UPL row on 2004-01-23 caused by an unadjusted pre-split price mismatch). They are left untouched in this assignment because the SCS solver pipeline aggregates over the full sample mean and covariance and is not sensitive to a handful of isolated jumps at the precision targeted here. Notebooks that estimate per-day returns (e.g. walk-forward backtests) winsorise these inside the notebook before estimation. Daily simple returns are computed as `matrix.pct_change()`:
 
-- **Full Universe**: 49 stocks, 2598 trading days, from `2010-11-04` to `2021-04-30`
-- **Extended Universe**: 37 stocks, 4286 trading days, from `2004-01-23` to `2021-04-30`
+$$
+R_t = \frac{\text{Close}_t}{\text{Close}_{t-1}} - 1,
+$$
 
-This comparison distinguishes between a shorter common history and a longer but smaller stock universe.
+where $\text{Close}_{t-1}$ is the previous available close in the matrix (the previous trading day for each stock).
+
+The two universes distinguish between a shorter common history with more stocks and a longer but smaller stock universe.
 
 ## 3. Mean-Variance Formulation
 
-Daily returns are computed gap-safe per row using the exchange-reported previous close:
+Daily simple returns are computed by `pct_change()` on the wide `Close` matrix:
 
 $$
-R_t = \frac{\text{Close}_t}{\text{PrevClose}_t} - 1
+R_t = \frac{\text{Close}_t}{\text{Close}_{t-1}} - 1
 $$
 
 These returns are annualized using the 252-trading-day convention:
@@ -97,7 +98,9 @@ $$
 
 Objective is linear in $(w, t)$; risk constraint is a rotated SOC. CVXPY passes this directly to SCS.
 
-### ADMM Updates
+### ADMM-Style Solver Intuition
+
+The update equations below are a simplified schematic of operator splitting, not a line-by-line reproduction of SCS internals.
 
 Each SCS iteration:
 
@@ -107,27 +110,31 @@ $$
 (w^{k+1}, t^{k+1}) = \arg\min_{w,t} \; \left(\tfrac{1}{2}t - \gamma\mu^\top w\right) + \tfrac{\rho}{2}\left\|\binom{w}{t} - z^k + u^k\right\|_2^2
 $$
 
-Coefficient matrix involves $L^\top L = \Sigma$, fixed across all $\gamma$; same factorization reused every iteration.
-   
+Coefficient matrix involves $L^\top L = \Sigma$, which depends only on the covariance and
+not on $\gamma$ or $\mu$. Inside a single `solver.solve()` call SCS reuses the cached
+factorization across its ADMM iterations.
 
 **Step 2 - Project**: $z^{k+1} = \Pi\bigl(w^{k+1}+u^k,\; t^{k+1}+u^k_t\bigr)$ onto $\mathbf{1}^\top w=1$, $w\ge 0$, $(t, L^\top w)\in\mathcal{Q}_{\text{rot}}$.
 
 **Step 3 - Dual**: $u^{k+1} = u^k + (w^{k+1}, t^{k+1}) - z^{k+1}$
 
-Because $L$ is fixed, the factorization is paid once; SCS only iterates the cheap primal-project-dual cycle across the $\gamma$ sweep.
+Within a single solve the $\Sigma$ factorization is reused across ADMM iterations.
+Across separate `solve()` calls in the $\gamma$ sweep, reuse depends on whether CVXPY
+warm-starts the conic problem; the notebook does not explicitly warm-start, so the
+factorization may be recomputed per $\gamma$.
 
 ### Why Cholesky?
 
 Cholesky-factor $\Sigma = L L^\top$:
 
 - **Cone form**: converts $w^\top \Sigma w$ into $\|L^\top w\|_2^2$, a squared norm SCS can express as a rotated second-order cone.
-- **Speed**: $L$ depends only on $\Sigma$, not on $\gamma$ or $\mu$. Computed **once**, reused across every $\gamma$ and every ADMM iteration.
+- **Speed**: $L$ depends only on $\Sigma$, not on $\gamma$ or $\mu$. Inside a single solve it is computed once and reused across the ADMM iterations. Across $\gamma$ values, reuse depends on whether the solver back end warm-starts; CVXPY may rebuild the conic problem per solve unless explicit warm-start parameters are passed.
 
 ## 5. Portfolio Results
 
 Before the $\gamma$ sweep, the global minimum variance (GMV) portfolio is computed as the risk floor no $\gamma$-portfolio can achieve lower volatility than this. The GMV risk floors are **13.43%** for the Full universe and **17.00%** for the Extended universe. The higher Extended floor reflects the inclusion of the 2004-2010 period, which contains greater market stress and raises the estimated covariance.
 
-In the tables below, **Return** means annualized expected return and **Risk** means annualized volatility.
+In the tables below, **Return** means annualized expected return (the historical sample mean times 252, not a forward forecast) and **Risk** means annualized volatility.
 
 ### 5.1 Full Universe Results
 
@@ -165,11 +172,11 @@ Another important point is that the best risk-adjusted region is not the most co
 
 The difference between the Full and Extended universes comes from the data window. The Extended universe uses a longer sample, so the expected return and covariance estimates change. As a result, the selected holdings and the speed of concentration are not the same.
 
-The efficient frontier comparison (notebook §6) shows a crossover near 23% risk. Below that level, the Full universe achieves higher return at the same risk because its broader 49-stock universe provides more diversification options within the shorter window. Above it, the Extended universe overtakes the longer sample captures stronger long-run return signals for names like BAJFINANCE and SHREECEM that dominate at higher risk budgets.
+The efficient frontier comparison (notebook §6) shows a crossover near 23% risk. Below that level, the Full universe achieves higher return at the same risk because its broader 49-stock universe provides more diversification options within the shorter window. Above it, the Extended universe overtakes because the longer sample captures stronger long-run return signals for names like BAJFINANCE and SHREECEM that dominate at higher risk budgets.
 
 ## 7. Solver Parameter Sensitivity
 
-The assignment also asks for parameter changes and re-estimation. In this section, the optimization problem is held fixed and only the SCS settings are changed.
+This section tests SCS parameter sensitivity. The optimization problem is held fixed and only the SCS settings (tolerance, iteration cap, relaxation) are changed.
 
 Using the Full universe at $\gamma = 1.0$, the results were:
 
@@ -184,16 +191,16 @@ The return drift, risk drift, and weight drift are negligible. Therefore, SCS is
 
 ## 8. Solver Time Comparison
 
-The principal practical benefit of SCS in this setting is speed. On the Full universe at $\gamma = 1.0$, SCS was compared with a high-precision SCS run and with other convex solvers on the same problem.
+On the Full universe at $\gamma = 1.0$, SCS was compared with a high-precision SCS run and with two other convex solvers on the same problem. The numbers below are single-run wall-clock times and are sensitive to per-run noise at the sub-millisecond scale.
 
 | Solver               | Solve Time (s) | Return |   Risk |
 | -------------------- | -------------: | -----: | -----: |
-| SCS                  |       0.000097 | 37.59% | 33.66% |
-| SCS (High Precision) |       0.000137 | 37.59% | 33.66% |
-| ECOS                 |       0.000861 | 37.59% | 33.66% |
-| OSQP                 |       0.000460 | 37.59% | 33.66% |
+| SCS                  |       0.000224 | 37.59% | 33.66% |
+| SCS (High Precision) |       0.000342 | 37.59% | 33.66% |
+| ECOS                 |       0.002028 | 37.59% | 33.66% |
+| OSQP                 |       0.001084 | 37.59% | 33.66% |
 
-The portfolio is almost identical across all four runs, but SCS is faster. That is the main reason it is an appropriate solver for this assignment.
+The portfolio is almost identical across all four runs to numerical tolerance. SCS is used here because the problem is a small SOCP that conic first-order ADMM handles well, and the observed wall-clock time is competitive on this problem size.
 
 ## 9. Limitations
 

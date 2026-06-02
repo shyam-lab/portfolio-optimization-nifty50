@@ -28,24 +28,41 @@ Three portfolio families are compared on both the Full and Extended universes:
 
 ## 2. Data and Two Universes
 
-The raw data file is `data/raw/raw_data.csv`. Only rows with `Series == "EQ"` are retained;
-pseudo-symbol rows are removed. Close prices are pivoted into a wide date x symbol matrix.
+The notebook reads the checked-in processed price matrices produced upstream by
+`data/Data_Pipeline.ipynb`:
 
-Two universes are constructed:
+- `data/processed/price_matrix_full.csv` — 49 NIFTY-50 constituents with the common window
+  where every stock has data: 2,598 trading days from 2010-11-04 to 2021-04-30.
+- `data/processed/price_matrix_extended.csv` — 37 constituents that traded across the longer
+  window: 4,286 trading days from 2004-01-23 to 2021-04-30.
 
-- **Full Universe**: all stocks, restricted to the common window where every stock has data.
-  49 stocks, 2598 trading days, 2010-11-04 to 2021-04-30.
-- **Extended Universe**: stocks with more than 1,100 missing days are dropped, giving a longer
-  window. 37 stocks, 4286 trading days, 2004-01-23 to 2021-04-30.
+Both files store wide-format daily closes indexed by date, one column per stock. The
+index-level pseudo column `NIFTY50_all` is dropped from each matrix before any modelling.
+The upstream pipeline keeps only `Series == "EQ"` rows in `data/raw/raw_data.csv`, removes
+the `NIFTY50_all` and `stock_metadata` pseudo symbols, restricts to the common trading
+window where every retained stock has complete daily closes, and reshapes the long file to
+the wide matrix. The processed matrices store *prices*; no return-level filtering is
+applied at the pipeline stage. A handful of single-day returns with $|R_t| \ge 0.5$ persist
+(unadjusted corporate actions). They are not winsorised in this notebook because the EWMA
+estimator with a 252-day half-life dampens isolated single-day jumps; if larger sensitivity
+appears in later experiments, the affected dates can be set to NaN inside the notebook
+before EWMA estimation.
 
-The trade-off is between breadth (more stocks, shorter history) and depth (fewer stocks, longer
-history that includes the 2008 financial crisis and other stress periods).
+The trade-off is between breadth (more stocks, shorter history) and depth (fewer stocks,
+longer history that includes the 2008 financial crisis and other stress periods).
 
 ## 3. Train and Test Split
 
-All model parameters are estimated on data up to `2018-12-31`. The test window is
-`2019-01-01` to `2021-04-30` (~2.5 years), which includes the 2020 COVID drawdown and recovery.
-No test-period information enters any estimation step.
+All model parameters (feature scalers, classifier weights, EWMA $\hat\mu$, sample $\hat\Sigma$)
+are estimated on data up to `2018-12-31`. The test window is `2019-01-01` to `2021-04-30`
+(~2.5 years), which includes the 2020 COVID drawdown and recovery.
+
+Test-period information does not enter classifier **training** at any point. The classifier's
+test-time probabilities are then used to form the stock screen via `per_stock_buy_proba`,
+which slices to the first $H = 21$ test dates only (`cutoff_dates = sorted(df.index.unique())[:n_days]`)
+to produce per-stock buy probabilities. Portfolio evaluation runs strictly after the 21-day
+signal-formation window, so the classifier signal never overlaps with the returns it is
+graded on.
 
 ## 4. Feature Construction
 
@@ -99,13 +116,16 @@ of the most recent observation.
 
 ### 5.3 Classifier Metrics
 
-| Universe | Buy Accuracy | Buy-Set Mean Return | Sell-Set Mean Return | Stocks Kept (P > 0.51) |
-| --- | --- | --- | --- | --- |
-| Full | 53.44% | - | - | 14 / 49 |
-| Extended | 51.09% | - | - | 14 / 37 |
+| Universe | Buy Accuracy | Buy−Sell Return Spread | Stocks Kept (P > 0.51) |
+| --- | --- | --- | --- |
+| Full | 53.44% | +1.84pp | 14 / 49 |
+| Extended | 51.09% | −0.04pp | 14 / 37 |
 
-Full has a positive buy-sell spread (+1.84pp). Extended is near zero (-0.04pp). Both universes
-keep only 14 stocks, cutting the optimizer's feasible set roughly in half.
+Full has a positive buy-sell spread (+1.84pp), indicating the classifier's buy predictions carry a real return edge over sell predictions. Extended is near zero (−0.04pp). Both universes keep only 14 stocks, cutting the optimizer's feasible set roughly in half.
+
+**Portfolio formation and evaluation windows.** The ML stock screen is formed using the first
+21 test-date predictions (approximately January 2019). Portfolio evaluation runs strictly after
+that window, so the classifier signal does not see any of the returns it is graded on.
 
 ## 6. Walk-Forward Feature Selection
 
@@ -227,33 +247,33 @@ Only the stock universe fed into the optimizer differs across the three families
 
 | Gamma | Portfolio | Ann. Return | Ann. Volatility | Sharpe | CAGR | N\_eff |
 | --- | --- | --- | --- | --- | --- | --- |
-| - | Equal Weight | 7.91% | 21.71% | 0.364 | 6.10% | 49.0 |
-| 0.10 | Markowitz | 20.15% | 25.75% | 0.782 | 18.28% | 4.7 |
-| 0.50 | Markowitz | 32.43% | 39.92% | 0.812 | 27.44% | 1.6 |
-| 1.00 | Markowitz | 34.34% | 43.63% | 0.787 | 27.82% | 1.2 |
-| 2.00 | Markowitz | 33.61% | 43.74% | 0.768 | 26.83% | 1.1 |
-| 5.00 | Markowitz | 33.18% | 43.84% | 0.757 | 26.23% | 1.0 |
-| 0.10 | ML class + Markowitz | 12.23% | 24.76% | 0.494 | 9.59% | 4.4 |
-| 0.50 | ML class + Markowitz | 24.44% | 28.01% | 0.873 | 22.76% | 1.8 |
-| 1.00 | ML class + Markowitz | 30.30% | 32.53% | 0.931 | 28.32% | 2.0 |
-| 2.00 | ML class + Markowitz | 42.01% | 46.34% | 0.907 | 36.41% | 1.1 |
-| 5.00 | ML class + Markowitz | 43.58% | 48.47% | 0.899 | 37.14% | 1.0 |
+| - | Equal Weight | 18.37% | 24.55% | 0.748 | 16.55% | 49.0 |
+| 0.10 | Markowitz | 22.05% | 26.12% | 0.844 | 20.44% | 4.7 |
+| 0.50 | Markowitz | 35.33% | 40.41% | 0.874 | 30.92% | 1.6 |
+| 1.00 | Markowitz | 37.32% | 44.17% | 0.845 | 31.35% | 1.2 |
+| 2.00 | Markowitz | 36.52% | 44.28% | 0.825 | 30.25% | 1.1 |
+| 5.00 | Markowitz | 36.05% | 44.38% | 0.812 | 29.58% | 1.0 |
+| 0.10 | ML class + Markowitz | 14.63% | 25.14% | 0.582 | 12.15% | 4.4 |
+| 0.50 | ML class + Markowitz | 27.13% | 28.39% | 0.956 | 25.96% | 1.8 |
+| 1.00 | ML class + Markowitz | 33.32% | 32.95% | 1.011 | 32.07% | 2.0 |
+| 2.00 | ML class + Markowitz | 45.70% | 46.94% | 0.974 | 41.13% | 1.1 |
+| 5.00 | ML class + Markowitz | 47.37% | 49.10% | 0.965 | 41.99% | 1.0 |
 
 ### 8.2 Extended Universe Results
 
 | Gamma | Portfolio | Ann. Return | Ann. Volatility | Sharpe | CAGR | N\_eff |
 | --- | --- | --- | --- | --- | --- | --- |
-| - | Equal Weight | 8.42% | 22.42% | 0.376 | 6.59% | 37.0 |
-| 0.10 | Markowitz | 12.39% | 24.87% | 0.498 | 9.72% | 5.1 |
-| 0.50 | Markowitz | 27.16% | 27.92% | 0.973 | 26.14% | 2.8 |
-| 1.00 | Markowitz | 34.23% | 34.65% | 0.988 | 32.48% | 2.4 |
-| 2.00 | Markowitz | 41.91% | 45.34% | 0.924 | 36.91% | 1.2 |
-| 5.00 | Markowitz | 43.58% | 48.47% | 0.899 | 37.14% | 1.0 |
-| 0.10 | ML class + Markowitz | 7.89% | 25.68% | 0.307 | 4.66% | 4.0 |
-| 0.50 | ML class + Markowitz | 22.75% | 28.54% | 0.797 | 20.51% | 2.1 |
-| 1.00 | ML class + Markowitz | 32.32% | 34.56% | 0.935 | 30.03% | 1.9 |
-| 2.00 | ML class + Markowitz | 43.58% | 48.47% | 0.899 | 37.14% | 1.0 |
-| 5.00 | ML class + Markowitz | 43.58% | 48.47% | 0.899 | 37.14% | 1.0 |
+| - | Equal Weight | 17.69% | 25.42% | 0.696 | 15.51% | 37.0 |
+| 0.10 | Markowitz | 15.03% | 25.25% | 0.595 | 12.54% | 5.1 |
+| 0.50 | Markowitz | 29.17% | 28.30% | 1.031 | 28.57% | 2.8 |
+| 1.00 | Markowitz | 36.52% | 35.12% | 1.040 | 35.32% | 2.4 |
+| 2.00 | Markowitz | 45.25% | 45.93% | 0.985 | 41.17% | 1.2 |
+| 5.00 | Markowitz | 47.37% | 49.10% | 0.965 | 41.99% | 1.0 |
+| 0.10 | ML class + Markowitz | 10.71% | 26.08% | 0.411 | 7.54% | 4.0 |
+| 0.50 | ML class + Markowitz | 25.79% | 28.92% | 0.892 | 24.09% | 2.1 |
+| 1.00 | ML class + Markowitz | 35.46% | 35.01% | 1.013 | 33.96% | 1.9 |
+| 2.00 | ML class + Markowitz | 47.37% | 49.10% | 0.965 | 41.99% | 1.0 |
+| 5.00 | ML class + Markowitz | 47.37% | 49.10% | 0.965 | 41.99% | 1.0 |
 
 ### 8.3 Realized Risk-Return Trace
 
@@ -271,27 +291,30 @@ advantage on Full because it measures only the low $\gamma$ region where Markowi
 
 ### 9.1 Where ML Wins (Full Universe)
 
-On the **Full universe**, the ML screen beats Markowitz on Sharpe at four of five $\gamma$
-values ($\gamma \ge 0.5$). The sole exception is $\gamma = 0.1$, where Markowitz wins
-(0.782 vs 0.494, gap -0.289).
+On the **Full universe**, the ML screen has a higher realised Sharpe than Markowitz at four
+of five $\gamma$ values ($\gamma \ge 0.5$) over the 2019-2021 test set. The exception is
+$\gamma = 0.1$, where Markowitz is higher (0.844 vs 0.582, gap -0.262). The advantage is
+metric- and universe-specific: it does not hold for the Extended universe or for $\gamma < 0.5$.
 
 The pattern follows from how $\gamma$ interacts with the reduced stock set. At $\gamma = 0.1$
 the optimizer prioritizes variance reduction; ML's $N_{\text{eff}} = 4.4$ vs Markowitz's 4.7
 means fewer effective positions, and the diversification loss from filtering 49 stocks down to
 14 dominates. As $\gamma$ increases, the optimizer tilts toward expected return, and deliberate
 concentration becomes the goal. The classifier's stock-picking signal (53% buy accuracy,
-+1.84pp buy-sell spread) focuses capital on higher-conviction names. By $\gamma = 1.0$ ML
-reaches Sharpe 0.931 vs 0.787 for Markowitz, a +0.144 advantage.
++1.84pp buy-sell spread) focuses capital on higher-conviction names. At $\gamma = 1.0$ the
+ML-screen Sharpe in this test set is 1.011 vs 0.845 for Markowitz, a +0.166 difference. This
+is a single realised gap on a 2.5-year test set, not a statistical claim about expected
+out-of-sample performance.
 
 CV kept all 20 features for Full. Extended needed only 6 (5 daily lags + 252-day rolling mean);
 monthly lags hurt (+0.45 val Sharpe when removed).
 
 ### 9.2 Where ML Does Not Help (Extended)
 
-On the **Extended universe**, Markowitz wins at every $\gamma$. The Sharpe gap ranges from
--0.191 ($\gamma = 0.1$) to -0.025 ($\gamma = 2.0$), narrowing as both methods converge
-toward the same dominant stock. At $\gamma \ge 2.0$ both portfolios collapse to
-$N_{\text{eff}} \approx 1.0$ and identical Sharpe (0.899).
+On the **Extended universe**, Markowitz wins at every $\gamma < 5.0$ and ties ML at $\gamma = 5.0$.
+The Sharpe gap (ML − Markowitz) ranges from −0.185 ($\gamma = 0.1$) to −0.020 ($\gamma = 2.0$),
+narrowing as both methods converge toward the same dominant stock. At $\gamma = 5.0$ both
+portfolios collapse to $N_{\text{eff}} = 1.0$ and identical Sharpe (0.965).
 
 The Extended universe starts with only 37 stocks. Filtering to 14 removes 62% of the
 investable set, compared to 71% on Full (14 of 49). In relative terms the Extended screen
@@ -302,11 +325,11 @@ the lost breadth.
 ### 9.3 Concentration Mechanics
 
 The $N_{\text{eff}}$ column explains why the ML advantage is gamma-dependent. At $\gamma = 1.0$
-on Full, ML achieves Sharpe 0.931 with $N_{\text{eff}} = 2.0$ while Markowitz gets 0.787 with
+on Full, ML achieves Sharpe 1.011 with $N_{\text{eff}} = 2.0$ while Markowitz gets 0.845 with
 $N_{\text{eff}} = 1.2$. ML holds two effective positions versus one for Markowitz, yet
 delivers better risk-adjusted return because those two stocks are better-selected by the
 classifier. At $\gamma = 5.0$ on Extended, both methods converge to $N_{\text{eff}} = 1.0$
-and identical performance (Sharpe 0.899), confirming that at extreme concentration the
+and identical performance (Sharpe 0.965), confirming that at extreme concentration the
 screen and the unconstrained optimizer pick the same dominant name (BAJFINANCE).
 
 ## 10. Limitations
@@ -327,14 +350,16 @@ screen and the unconstrained optimizer pick the same dominant name (BAJFINANCE).
 
 ## 11. Conclusion
 
-Whether the ML screen adds value depends on the universe and on $\gamma$. On the Full universe
-(49 stocks), ML class + Markowitz beats plain Markowitz on Sharpe at every $\gamma \ge 0.5$,
-with the largest gain at $\gamma = 1.0$ (+0.144). At $\gamma = 0.1$ Markowitz wins because the
-optimizer needs the diversification that 49 stocks provide and filtering to 14 removes too much.
+Whether the ML screen adds realised value depends on the universe and on $\gamma$. On the
+Full universe (49 stocks), the ML screen has a higher realised Sharpe than plain Markowitz
+at every $\gamma \ge 0.5$ over the 2019-2021 test set, with the largest gap at $\gamma = 1.0$
+(+0.166). At $\gamma = 0.1$ Markowitz is higher; the optimiser needs the diversification
+that 49 stocks provide, and filtering to 14 removes too much.
 
-On the Extended universe (37 stocks), Markowitz wins at every $\gamma$. The smaller starting
-universe means the ML filter removes proportionally more breadth, and the classifier's weaker
-accuracy on Extended (51% vs 53%) does not compensate.
+On the Extended universe (37 stocks), Markowitz has the higher Sharpe at every $\gamma < 5.0$
+and ties ML at $\gamma = 5.0$ (both 0.965) in this test set. The smaller starting universe
+means the ML filter removes proportionally more breadth, and the classifier's weaker accuracy
+on Extended (51% vs 53%) does not compensate.
 
 CV selected 6 features for Extended (daily lags + 252-day rolling mean) and all 20 for Full.
 

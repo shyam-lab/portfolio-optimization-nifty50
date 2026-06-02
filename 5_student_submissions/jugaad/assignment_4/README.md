@@ -12,8 +12,10 @@ force on a reduced subset and simulated annealing on the full universe.
 
 Classical portfolio optimization selects weights from a continuous weight space subject to
 linear constraints. A different framing asks a discrete question: given $N$ stocks, which
-$K$ should be held at all? This is a combinatorial problem. QUBO is one way to pose it
-in a form that quantum-inspired solvers can handle.
+$K$ should be held at all? This is a combinatorial problem. QUBO is one standard way to
+pose it. The format is what specialised samplers (simulated annealing, parallel tempering,
+or annealing-style hardware) accept directly; this report uses classical simulated annealing
+on a CPU.
 
 In the return-only case, the QUBO objective maximizes expected return subject to a cardinality
 constraint, with the constraint encoded as a quadratic penalty. Adding a risk term introduces
@@ -101,7 +103,7 @@ combination, the QUBO cost is computed directly and the minimum is recorded.
 For the full 49-stock problem, simulated annealing with swap moves is used. Each step
 exchanges one selected stock for one unselected stock, keeping cardinality fixed at $K = 10$
 throughout. This means the search space is restricted to feasible solutions; the penalty
-term is present in $Q$ but only affects the relative cost landscape.
+term is present in $Q$ but only affects the relative cost surface.
 
 Parameters: 200,000 iterations, 20 restarts, $T_0 = 10$, $\alpha = 0.99997$ (geometric
 cooling).
@@ -149,18 +151,29 @@ $\mu_i$:
 - Naive top $K$ (first 20): identical
 - QUBO cost: -260.0706
 
-This validates the formulation. With a sufficiently large $\lambda$, the QUBO correctly
-encodes the constrained problem: the penalty kills all infeasible solutions, leaving the
-return-maximizing feasible solution as the global minimum.
+This validates the formulation. With a sufficiently large $\lambda$, the penalty makes
+infeasible solutions unattractive relative to any feasible solution, so the global minimum
+of the unconstrained QUBO coincides with the optimum of the constrained problem.
 
 ### 7.2 Simulated Annealing (Full Universe)
 
 SA on all 49 stocks recovers a near-optimal selection:
 
-- SA selected: ADANIPORTS, BAJAJFINSV, BAJFINANCE, BRITANNIA, EICHERMOT, HINDUNILVR,
-  INDUSINDBK, KOTAKBANK, SHREECEM, ULTRACEMCO
-- Total return: 2.5876 (annualized)
-- QUBO cost gap vs naive top-10: 0.0009
+| Method              | Cardinality | Total Return | QUBO Cost  | Gap vs Naive |
+| ------------------- | ----------- | ------------ | ---------- | ------------ |
+| Naive top-K (μ)     | 10          | —            | -260.4244  | 0            |
+| Simulated annealing | 10          | 2.5876       | -260.4235  | +0.0009      |
+
+SA selected: ADANIPORTS, BAJAJFINSV, BAJFINANCE, BRITANNIA, EICHERMOT, HINDUNILVR,
+INDUSINDBK, KOTAKBANK, SHREECEM, ULTRACEMCO
+
+Naive top-K differs from SA by one stock (MARUTI vs KOTAKBANK). For this QUBO
+(minimization), the lower cost is better: Naive top-K (-260.4244) is fractionally
+better than SA (-260.4235), with a gap of 0.0009. The return-only QUBO with swap
+moves has no covariance structure to exploit beyond the diagonal $\mu_i$ ranking, so
+the global minimum is the naive top-K set; SA gets to within 0.0009 of it. The
+informative test of the annealer is the risk-extended objective in section 7.4, where
+the off-diagonal covariance terms matter.
 
 The SA-selected set differs from the 20-stock brute-force set because the full 49-stock
 universe contains stocks (HINDUNILVR, INDUSINDBK, KOTAKBANK, SHREECEM, ULTRACEMCO)
@@ -178,8 +191,27 @@ with higher $\mu_i$ than some stocks in the first 20.
 | 10.0 | 10 | 1.57 | Signal partially drowned |
 | 1000 | 10 | 1.76 | Signal fully drowned, arbitrary selection |
 
-The working range for this problem is $\lambda \approx 0.3$ to $1$. The chosen value
-$\lambda = 20 \cdot \text{mean}(|\mu_i|)$ falls in this range.
+Two regimes for the bit-flip solver:
+
+- **Low $\lambda$**: penalty term too weak. The return reward of adding an extra stock
+  outweighs the penalty cost of violating $\sum x_i = K$. Solver ignores the cardinality
+  constraint and picks more (or fewer) than 10 stocks.
+- **High $\lambda$**: penalty term dominates $Q$. The $\mu_i$ values become negligible
+  relative to $\lambda$, so the solver picks exactly $K = 10$ stocks but is nearly
+  indifferent to which ones — the return signal is ignored.
+
+The bit-flip working range, where cardinality holds **and** the return signal still
+differentiates between stocks, is $\lambda \approx 0.3$ to $1$.
+
+The chosen value $\lambda = 20 \cdot \text{mean}(|\mu_i|) \approx 2.58$ sits **above**
+this bit-flip working range, which would seem inconsistent. The reason it does not matter
+is that the production solver in §7.2 is not bit-flip SA — it is **swap-move SA**, which
+preserves $\sum x_i = K$ by construction at every iteration. Under swap moves the
+$\lambda$ penalty only adds a constant to every feasible cost and does not gate
+feasibility, so $\lambda$ does not need to sit inside the bit-flip working range. The
+sensitivity sweep above is a diagnostic for what happens if the penalty alone has to
+enforce cardinality; the production solver does not depend on $\lambda$ being in any
+particular range.
 
 ### 7.4 Risk-Aversion Sweep
 
